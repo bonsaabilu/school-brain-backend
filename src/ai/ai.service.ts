@@ -6,8 +6,17 @@ import { firstValueFrom } from 'rxjs';
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly AI_SERVICE_URL = 'http://localhost:8001/predict';
-  private readonly AI_DOCS_URL = 'http://localhost:8001/docs';
+
+  private get aiServiceUrl(): string {
+    const raw = process.env.AI_SERVICE_URL || 'http://localhost:8001/predict';
+    return raw.endsWith('/predict') ? raw : `${raw.replace(/\/$/, '')}/predict`;
+  }
+
+  private get aiDocsUrl(): string {
+    const raw = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+    const host = raw.replace(/\/predict\/?$/, '').replace(/\/$/, '');
+    return `${host}/docs`;
+  }
 
   constructor(
     private readonly httpService: HttpService,
@@ -20,18 +29,18 @@ export class AiService {
   async getStatus() {
     try {
       await firstValueFrom(
-        this.httpService.get(this.AI_DOCS_URL, { timeout: 1500 }),
+        this.httpService.get(this.aiDocsUrl, { timeout: 1500 }),
       );
       return {
         status: 'online',
-        aiServiceUrl: this.AI_SERVICE_URL,
+        aiServiceUrl: this.aiServiceUrl,
         model: 'student_risk_model.joblib',
         threshold: 0.65,
       };
     } catch (err: any) {
       return {
         status: 'offline',
-        aiServiceUrl: this.AI_SERVICE_URL,
+        aiServiceUrl: this.aiServiceUrl,
         fallbackMode: 'heuristic_inference',
         error: err.message,
       };
@@ -157,7 +166,7 @@ export class AiService {
     try {
       // Direct call to Python FastAPI AI service
       const response = await firstValueFrom(
-        this.httpService.post(this.AI_SERVICE_URL, payload, { timeout: 3000 }),
+        this.httpService.post(this.aiServiceUrl, payload, { timeout: 3000 }),
       );
 
       if (response?.data) {
@@ -169,7 +178,7 @@ export class AiService {
       }
     } catch (extErr) {
       this.logger.warn(
-        `AI prediction server at ${this.AI_SERVICE_URL} unreachable or timed out. Applying high-precision heuristic inference for student ${student.id}`,
+        `AI prediction server at ${this.aiServiceUrl} unreachable or timed out. Applying high-precision heuristic inference for student ${student.id}`,
       );
       const totalAttendances = Array.isArray(student.attendances) ? student.attendances.length : 0;
       const absenceRate = totalAttendances > 0 ? absences / totalAttendances : 0;
