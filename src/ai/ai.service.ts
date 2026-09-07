@@ -8,12 +8,12 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
 
   private get aiServiceUrl(): string {
-    const raw = process.env.AI_SERVICE_URL || 'http://localhost:8001/predict';
+    const raw = process.env.AI_SERVICE_URL || 'https://school-brain-ai.onrender.com';
     return raw.endsWith('/predict') ? raw : `${raw.replace(/\/$/, '')}/predict`;
   }
 
   private get aiDocsUrl(): string {
-    const raw = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+    const raw = process.env.AI_SERVICE_URL || 'https://school-brain-ai.onrender.com';
     const host = raw.replace(/\/predict\/?$/, '').replace(/\/$/, '');
     return `${host}/docs`;
   }
@@ -29,7 +29,7 @@ export class AiService {
   async getStatus() {
     try {
       await firstValueFrom(
-        this.httpService.get(this.aiDocsUrl, { timeout: 1500 }),
+        this.httpService.get(this.aiDocsUrl, { timeout: 5000 }),
       );
       return {
         status: 'online',
@@ -166,7 +166,7 @@ export class AiService {
     try {
       // Direct call to Python FastAPI AI service
       const response = await firstValueFrom(
-        this.httpService.post(this.aiServiceUrl, payload, { timeout: 3000 }),
+        this.httpService.post(this.aiServiceUrl, payload, { timeout: 8000 }),
       );
 
       if (response?.data) {
