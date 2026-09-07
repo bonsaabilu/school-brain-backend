@@ -1,0 +1,306 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum Permission {
+  // User management
+  USER_CREATE
+  USER_READ
+  USER_UPDATE
+  USER_DELETE
+
+  // Role management
+  ROLE_ASSIGN
+
+  // Student management
+  STUDENT_CREATE
+  STUDENT_READ
+  STUDENT_UPDATE
+  STUDENT_DELETE
+
+  // Teacher management
+  TEACHER_CREATE
+  TEACHER_READ
+  TEACHER_UPDATE
+  TEACHER_DELETE
+
+  // Parent management
+  PARENT_CREATE
+  PARENT_READ
+  PARENT_UPDATE
+  PARENT_DELETE
+
+  // Class management
+  CLASS_CREATE
+  CLASS_READ
+  CLASS_UPDATE
+  CLASS_DELETE
+
+  // Subject management
+  SUBJECT_CREATE
+  SUBJECT_READ
+  SUBJECT_UPDATE
+  SUBJECT_DELETE
+
+  // Attendance
+  ATTENDANCE_CREATE
+  ATTENDANCE_READ
+  ATTENDANCE_UPDATE
+  ATTENDANCE_DELETE
+
+  // Grades
+  GRADE_CREATE
+  GRADE_READ
+  GRADE_UPDATE
+  GRADE_DELETE
+
+  // Notes
+  NOTE_CREATE
+  NOTE_READ
+  NOTE_UPDATE
+  NOTE_DELETE
+
+  // Reports
+  REPORT_READ
+
+  // Audit
+  AUDIT_READ
+
+  // Synchronization
+  SYNC_MANAGE
+}
+
+model User {
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String
+
+  firstName String
+  lastName  String
+
+  role               Role    @default(STUDENT)
+  isActive           Boolean @default(true)
+  mustChangePassword Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student Student?
+  teacher Teacher?
+  parent  Parent?
+}
+
+model Student {
+  id          String  @id @default(uuid())
+  userId      String? @unique
+  studentCode String  @unique // Unique roll/admission number
+
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  gender      String?
+  address     String?
+  phoneNumber String?
+  needsSupport Boolean @default(false)
+  riskScore   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user        User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  enrollments Enrollment[]
+  parents     ParentStudent[]
+  attendances Attendance[]
+  grades      Grade[]
+  notes       Note[]
+}
+
+model Parent {
+  id     String @id @default(uuid())
+  userId String @unique
+
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  students ParentStudent[]
+}
+
+// Explicit Many-to-Many join table for Parents and Students
+model ParentStudent {
+  parentId     String
+  studentId    String
+  relationship String // e.g., "Father", "Mother", "Guardian"
+
+  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([parentId, studentId])
+}
+
+model Teacher {
+  id     String @id @default(uuid())
+  userId String @unique
+
+  firstName String
+  lastName  String
+  phone     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classes      Class[]
+  classSubjects ClassSubject[]
+  grades       Grade[]
+  notes        Note[]
+  attendances  Attendance[]
+}
+
+model Class {
+  id           String  @id @default(uuid())
+  name         String
+  academicYear String
+  teacherId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacher      Teacher?       @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  enrollments  Enrollment[]
+  classSubjects ClassSubject[]
+}
+model Subject {
+  id        String  @id @default(uuid())
+  name      String
+  code      String  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classSubjects ClassSubject[]
+}
+
+model ClassSubject {
+  id        String @id @default(uuid())
+  classId   String
+  subjectId String
+  teacherId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  attendances Attendance[]
+  grades      Grade[]
+
+  @@unique([classId, subjectId])
+}
+
+model Enrollment {
+  id         String   @id @default(uuid())
+  studentId  String
+  classId    String
+  enrolledAt DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classId])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+model Attendance {
+  id             String           @id @default(uuid())
+  studentId      String
+  classSubjectId String
+  teacherId      String
+  date           DateTime
+  status         AttendanceStatus @default(PRESENT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSubject ClassSubject @relation(fields: [classSubjectId], references: [id], onDelete: Cascade)
+  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classSubjectId, date])
+}
+
+model Grade {
+  id             String @id @default(uuid())
+  studentId      String
+  classSubjectId String
+
+  score    Float
+  maxScore Float  @default(100.0)
+  term     String // e.g. "Midterm", "Final"
+
+  teacherId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSubject ClassSubject @relation(fields: [classSubjectId], references: [id], onDelete: Cascade)
+  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classSubjectId, term])
+}
+
+model Note {
+  id        String @id @default(uuid())
+  studentId String
+  teacherId String
+  content   String @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model RolePermission {
+  id         String     @id @default(uuid())
+  role       Role
+  permission Permission
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([role, permission])
+}
